@@ -1,0 +1,173 @@
+---
+name: kanban-zone
+description: Interact with KanbanZone kanban boards via the KanbanZone API. Use when the user wants to manage kanban cards, view boards, move cards between columns, check WIP limits, link cards, search across boards, or get board-level metrics. Supports listing boards, creating/updating/moving cards, card links, custom fields, watchers, filtering, and cross-board search.
+version: 2.0.0
+license: MIT
+metadata:
+  openclaw:
+    requires:
+      env:
+        - KANBANZONE_API_KEY
+        - KANBANZONE_BOARD_ID
+      bins:
+        - python3
+    primaryEnv: KANBANZONE_API_KEY
+    homepage: https://docs.kanbanzone.io
+---
+
+# KanbanZone
+
+Manage KanbanZone kanban boards through the KanbanZone Public API (v1.3).
+
+## Configuration
+
+**Required environment variables:**
+- `KANBANZONE_API_KEY` — Your raw API key from KanbanZone (the script handles Base64 encoding)
+- `KANBANZONE_BOARD_ID` — Default board public ID (overridable per command with `--board`)
+
+**Get your API key:**
+Settings > Organization Settings > Integrations > API Key
+Direct: `https://kanbanzone.io/settings/integrations`
+
+**Find column IDs:**
+Board Settings > API, or Organization Settings > Integrations > API
+
+## Quick Start
+
+```bash
+# List all boards
+python scripts/kanbanzone_api.py boards
+
+# Get board details with columns and WIP limits
+python scripts/kanbanzone_api.py board --include-columns
+
+# List cards on default board
+python scripts/kanbanzone_api.py cards
+
+# Filter cards by label and blocked status
+python scripts/kanbanzone_api.py cards --label "Bug" --blocked
+
+# Search cards by keyword
+python scripts/kanbanzone_api.py cards --query "authentication"
+
+# Get a specific card
+python scripts/kanbanzone_api.py card --number 42
+
+# Create a card with watchers and custom fields
+python scripts/kanbanzone_api.py create-card --title "New task" --column-id abc123 \
+  --owner user@example.com --watcher reviewer@example.com \
+  --custom-field "Sprint=42" --custom-field "Team=Platform"
+
+# Move a card to a column
+python scripts/kanbanzone_api.py move-card --id 42 --column-id abc123
+
+# Link cards together
+python scripts/kanbanzone_api.py link-card --id 42 --card 99
+
+# Link to an external URL
+python scripts/kanbanzone_api.py link-card --id 42 --url "https://docs.example.com" --title "Spec"
+
+# Remove a link
+python scripts/kanbanzone_api.py unlink-card --id 42 --card 99
+
+# Search cards across all boards
+python scripts/kanbanzone_api.py search-cards --query "deploy"
+
+# Check WIP limits
+python scripts/kanbanzone_api.py wip-check
+```
+
+## Core Workflows
+
+### Board Overview
+1. Run `boards` to list all boards and their metrics (active/blocked/overdue counts).
+2. Run `board --include-columns` on a specific board to see columns, their states, and WIP limits.
+3. Use `wip-check` to compare current card counts against min/max WIP limits.
+
+### Card Lifecycle
+1. **Create**: `create-card --title "..." --column-id <backlog-col>` to add a card.
+2. **Assign**: `update-card --id <num> --owner user@example.com` to assign an owner.
+3. **Watch**: `update-card --id <num> --watcher watcher@example.com` to add watchers.
+4. **Move**: `move-card --id <num> --column-id <target-col>` to advance through columns.
+5. **Complete**: Move the card to a Done-state column.
+
+### Card Review
+1. `card --number <num>` to read card details, description, and current state.
+2. `update-card --id <num> --description "Updated notes"` to update content.
+3. `update-card --id <num> --blocked true --blocked-reason "Waiting on X"` to flag blockers.
+
+### Card Links
+1. `link-card --id <num> --card <other-num>` to create a card-to-card link (default type: `related`).
+2. `link-card --id <num> --url "https://..." --title "Reference" --type external` to add an external URL link.
+3. `unlink-card --id <num> --card <other-num>` to remove a card link.
+4. `unlink-card --id <num> --url "https://..."` to remove a URL link.
+
+### Custom Fields
+Set custom metadata on cards during creation or update:
+```bash
+python scripts/kanbanzone_api.py create-card --title "Task" \
+  --custom-field "Sprint=42" --custom-field "Team=Platform" --custom-field "Estimate=3d"
+```
+
+### Filtering & Search
+Filter cards on a single board:
+```bash
+python scripts/kanbanzone_api.py cards --label "Bug" --owner "dev@example.com" --blocked
+python scripts/kanbanzone_api.py cards --column "In Progress" --priority 1
+python scripts/kanbanzone_api.py cards --query "login"
+```
+
+Search across all boards:
+```bash
+python scripts/kanbanzone_api.py search-cards --query "deploy" --label "Enhancement"
+```
+
+### WIP Limit Checking
+Run `wip-check` to get a report comparing current card counts to each column's min/max WIP limits. Columns exceeding their max or below their min are flagged.
+
+### Batch Operations
+`create-cards --file cards.json` to create multiple cards at once. The JSON file should contain:
+```json
+{
+  "board": "board-public-id",
+  "cards": [
+    {"title": "Card 1", "columnId": "col-id"},
+    {"title": "Card 2", "columnId": "col-id", "watchers": ["a@b.com"], "customFields": [{"label": "Sprint", "value": "42"}]}
+  ]
+}
+```
+
+## Column States
+
+| State | Meaning |
+|-------|---------|
+| `Backlog` | Pre-commitment items |
+| `To Do` | Committed, ready to start |
+| `Buffer` | Queue between stages |
+| `In Progress` | Currently being worked on |
+| `Done` | Completed |
+| `Archive` | Historical items |
+| `None` | No state assigned |
+
+## Script Reference
+
+All commands output JSON. Run `python scripts/kanbanzone_api.py --help` for full usage.
+
+| Command | Description |
+|---------|-------------|
+| `boards` | List all boards with metrics |
+| `board` | Get a specific board's details |
+| `cards` | List cards (paginated, with optional filters) |
+| `card` | Get a single card by number |
+| `create-card` | Create one card (supports watchers, custom fields) |
+| `create-cards` | Create multiple cards from JSON |
+| `update-card` | Update card fields (supports watchers, custom fields) |
+| `move-card` | Move card to a column |
+| `link-card` | Add a card-to-card or URL link |
+| `unlink-card` | Remove a card-to-card or URL link |
+| `search-cards` | Search cards across all boards |
+| `wip-check` | Check WIP limits across columns |
+
+## API Reference
+
+See [references/api-reference.md](./references/api-reference.md) for complete endpoint documentation, data models, and response schemas.

@@ -1,0 +1,51 @@
+# Repository Guidelines
+
+## Overview
+
+This repository contains a Claude Skill for interacting with KanbanZone kanban boards. It is a single-file Python CLI (`scripts/kanbanzone_api.py`) using only the Python standard library.
+
+## File Roles
+
+- **SKILL.md** -- Claude Skill definition file. This is what Claude Code reads when the skill is invoked. It describes available commands, workflows, and configuration. Keep it in sync with the actual CLI capabilities.
+- **scripts/kanbanzone_api.py** -- The CLI implementation. All commands output JSON to stdout.
+- **references/api-reference.md** -- KanbanZone Public API v1.3 documentation. Use this as the source of truth for endpoints, request/response models, and field definitions.
+
+## Adding a New Command
+
+1. Write a `cmd_<name>(args)` handler function in `scripts/kanbanzone_api.py`.
+2. Add a subparser for the command in `build_parser()`.
+3. Add the command name and handler to the `commands` dict in `main()`.
+4. Update `SKILL.md` to document the new command in both the Quick Start examples and the Script Reference table.
+
+## Environment Setup
+
+Two environment variables are required:
+- `KANBANZONE_API_KEY` -- Raw API key from KanbanZone (Settings > Organization Settings > Integrations > API Key). The script Base64-encodes it automatically.
+- `KANBANZONE_BOARD_ID` -- Default board public ID. Can be overridden per command with `--board`.
+
+## Code Style
+
+- Python: PEP 8, 4-space indentation, `snake_case` functions and variables.
+- No third-party dependencies. stdlib only.
+- All CLI output must be valid JSON via `json.dump` to stdout.
+- Errors must exit with `error_exit()` which outputs JSON and sets exit code 1.
+
+## Testing
+
+There is no test suite. To verify changes, run commands against a real KanbanZone board with valid credentials:
+```bash
+export KANBANZONE_API_KEY="your-key"
+export KANBANZONE_BOARD_ID="your-board-id"
+python scripts/kanbanzone_api.py boards
+python scripts/kanbanzone_api.py board --include-columns
+python scripts/kanbanzone_api.py cards
+```
+
+## API Notes
+
+- Base URL: `https://integrations.kanbanzone.io/v1`
+- Auth: `Authorization: Basic {base64-encoded-key}`
+- Rate limits: Professional plan gets 1,000 calls/month; Enterprise is unlimited; Free/Basic plans have no API access.
+- The `ColumnItemOutputModel.boardTitle` field contains the column ID, not a board title.
+- Card numbers (integers) are used as IDs in update and move operations.
+- Mirrored card operations require a `board` field in the request body.
