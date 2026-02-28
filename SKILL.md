@@ -137,6 +137,48 @@ Run `wip-check` to get a report comparing current card counts to each column's m
 }
 ```
 
+## Board & Column Name Resolution (Agent Cache)
+
+To avoid unnecessary API calls when resolving board or column names to IDs, maintain a local cache file in your memory directory.
+
+### Cache file
+
+Store `kanbanzone-cache.json` in your persistent memory directory with this structure:
+
+```json
+{
+  "boards": {
+    "<board-public-id>": {
+      "name": "Board Name",
+      "columns": {
+        "<column-id>": { "name": "Column Name", "state": "In Progress" }
+      }
+    }
+  },
+  "updated": "2026-02-25T12:00:00Z"
+}
+```
+
+### Lookup flow
+
+1. **Before** calling the API to resolve a board name to an ID or a column name to an ID, read `kanbanzone-cache.json` from your memory directory.
+2. If the cache file exists and contains a matching name (case-insensitive), use the cached ID directly — **do not call the API**.
+3. If the cache file is missing, or the name is not found, call the appropriate API command (`boards` or `board --include-columns`) and then **update the cache file** with the full response data before proceeding.
+
+### Auto-populate
+
+Whenever you run `boards` or `board --include-columns` for any reason, always update `kanbanzone-cache.json` with the returned data. This keeps the cache fresh as a side effect of normal operations.
+
+### Cache refresh
+
+If the user says board or column data is stale, or explicitly asks to refresh the cache, re-fetch from the API (`boards` then `board --include-columns` for each board) and overwrite `kanbanzone-cache.json`.
+
+### Important notes
+
+- The cache lives in **your agent memory directory**, not in the skill's directory. This keeps the skill stateless and portable.
+- Column IDs change if a board is restructured — always honor a cache miss by falling back to the API.
+- When writing the cache, set `"updated"` to the current ISO 8601 timestamp.
+
 ## Column States
 
 | State | Meaning |
